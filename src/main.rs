@@ -1,8 +1,12 @@
 use std::{env, fs, io, process};
 
+struct Counters {
+    num_statements: u32,
+    num_blocks: u32
+}
+
 fn main() {
-    let mut num_statements: u32 = 0;
-    let mut num_blocks: u32 = 0;
+    let mut counter = Counters{ num_statements: 0, num_blocks: 0 };
     
     let mut args_iter = env::args().skip(1);
     let Some(file_path) = args_iter.next() else {
@@ -16,9 +20,23 @@ fn main() {
 	Ok(contents) => contents
     };
 
-    // Call scan_tokens
+    scan_tokens(src_content, &mut counter);
 
-    println!("Approximate number of statements: {}", num_statements);
-    println!("Approximate number of blocks: {}", num_blocks);
-    println!("{}", src_content);
+    println!("Approximate number of statements: {}", counter.num_statements);
+    println!("Approximate number of blocks: {}", counter.num_blocks);
+}
+
+fn scan_tokens(src_content: String, counter: &mut Counters) {
+    counter.num_statements += 1;
+    counter.num_blocks += 1;
+    for token in src_content.chars() {
+	match token {
+	    ';' => counter.num_statements += 1,
+	    '}' => counter.num_blocks += 1,
+	    '(' => {},
+	    '/' => {},
+	    '\"' => {},
+	    _ => {}
+	}
+    }
 }
