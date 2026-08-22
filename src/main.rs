@@ -1,4 +1,5 @@
 use std::{env, fs, io, process};
+use std::str::Chars;
 
 struct Counters {
     num_statements: u32,
@@ -27,16 +28,30 @@ fn main() {
 }
 
 fn scan_tokens(src_content: String, counter: &mut Counters) {
-    counter.num_statements += 1;
-    counter.num_blocks += 1;
-    for token in src_content.chars() {
+    let mut token_iter = src_content.chars();
+    while let Some(token) = token_iter.next() {
 	match token {
 	    ';' => counter.num_statements += 1,
 	    '}' => counter.num_blocks += 1,
-	    '(' => {},
-	    '/' => {},
-	    '\"' => {},
+	    '(' => skip_tokens(&mut token_iter, ')'),
+	    '/' => {
+		match token_iter.next() {
+		    Some('/') => skip_tokens(&mut token_iter, '\n'),
+		    Some('*') => skip_tokens(&mut token_iter, '/'),
+		    _ => {}
+		}
+	    },
+	    '\"' => skip_tokens(&mut token_iter, '\"'),
 	    _ => {}
+	}
+    }
+}
+
+fn skip_tokens(token_iter: &mut Chars, end_token: char) {
+    println!("Here for {}", end_token);
+    while let Some(token) = token_iter.next() {
+	if token == end_token {
+	    return;
 	}
     }
 }
