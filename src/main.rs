@@ -105,7 +105,11 @@ pub mod tests {
         let mut iter2 = test_str2.chars();
         iter2.next();
         skip_tokens(&mut iter2, '\"');
-        // assert_eq!(iter2.count(), 0, "Second double quote Chars iterator did not consume all of string.");
+        assert_eq!(
+            iter2.count(),
+            0,
+            "Second double quote Chars iterator did not consume all of string."
+        );
     }
 
     #[test]
@@ -138,6 +142,10 @@ pub mod tests {
         iter3.next();
         iter3.next();
         skip_tokens(&mut iter3, '/');
-        // assert_eq!(iter3.count(), 0, "Third iterator for multiline comment did not consume all tokens.");
+        assert_eq!(
+            iter3.count(),
+            0,
+            "Third iterator for multiline comment did not consume all tokens."
+        );
     }
 }
