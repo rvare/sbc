@@ -63,7 +63,6 @@ fn skip_tokens(token_iter: &mut Chars, end_token: char) {
 }
 
 fn skip_multiline_comment(token_iter: &mut Chars) {
-    println!("skip mult");
     while let Some(token) = token_iter.next() {
         match token {
             '*' => {
