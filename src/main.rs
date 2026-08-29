@@ -42,7 +42,7 @@ fn scan_tokens(src_content: String, counter: &mut Counters) {
             '(' => skip_tokens(&mut token_iter, ')'),
             '/' => match token_iter.next() {
                 Some('/') => skip_tokens(&mut token_iter, '\n'),
-                Some('*') => skip_tokens(&mut token_iter, '/'),
+                Some('*') => skip_multiline_comment(&mut token_iter),
                 _ => {}
             },
             '\"' => skip_tokens(&mut token_iter, '\"'),
@@ -55,6 +55,25 @@ fn skip_tokens(token_iter: &mut Chars, end_token: char) {
     while let Some(token) = token_iter.next() {
         if token == end_token {
             return;
+        } else if token == '\\' {
+            // Handles escape characters.
+            token_iter.next();
+        }
+    }
+}
+
+fn skip_multiline_comment(token_iter: &mut Chars) {
+    println!("skip mult");
+    while let Some(token) = token_iter.next() {
+        match token {
+            '*' => {
+                while let Some(star) = token_iter.next() {
+                    if star == '/' {
+                        return;
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -100,11 +119,14 @@ pub mod tests {
             "Double quote Chars iterator did not consume all of string"
         );
 
-        let test_str2 =
-            String::from("\"Here is a string with 'single quotes' and \"double quotes\" in it.\"");
+        let test_str2 = String::from(
+            "\"Here is a string with 'single quotes' and \\\"double quotes\\\" in it.\"",
+        );
         let mut iter2 = test_str2.chars();
         iter2.next();
         skip_tokens(&mut iter2, '\"');
+        let clone_iter = iter2.clone();
+        println!("{}", clone_iter.as_str());
         assert_eq!(
             iter2.count(),
             0,
@@ -113,12 +135,12 @@ pub mod tests {
     }
 
     #[test]
-    fn skip_multiline_comment() {
+    fn skip_tokens_in_multiline_comment() {
         let multiline_comment1 = String::from("/* Here is a multiline comment but single line. */");
         let mut iter1 = multiline_comment1.chars();
         iter1.next();
         iter1.next();
-        skip_tokens(&mut iter1, '/');
+        skip_multiline_comment(&mut iter1);
         assert_eq!(
             iter1.count(),
             0,
@@ -129,7 +151,7 @@ pub mod tests {
         let mut iter2 = multiline_comment2.chars();
         iter2.next();
         iter2.next();
-        skip_tokens(&mut iter2, '/');
+        skip_multiline_comment(&mut iter2);
         assert_eq!(
             iter2.count(),
             0,
@@ -141,7 +163,7 @@ pub mod tests {
         let mut iter3 = multiline_comment3.chars();
         iter3.next();
         iter3.next();
-        skip_tokens(&mut iter3, '/');
+        skip_multiline_comment(&mut iter3);
         assert_eq!(
             iter3.count(),
             0,
