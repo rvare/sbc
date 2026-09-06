@@ -22,8 +22,7 @@ fn main() {
 	panic!("Couldn't get the file");
     };
 
-    let buf_reader = BufReader::new(source_file);
-    let shared_bufreader = Arc::new(Mutex::new(buf_reader));
+    let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
     let (tx, rx): (Sender<Counters>, Receiver<Counters>) = mpsc::channel();
     let mut workers = vec![];
     for _ in 0..5 {
@@ -33,14 +32,15 @@ fn main() {
 	    let mut line = String::new();
 	    loop {
 		{
-		    let mut bf_reader = clone_bufreader.lock().unwrap();
-		    let Ok(num) = bf_reader.read_line(&mut line) else {
-			break;
+		    let Ok(mut bf_reader) = clone_bufreader.lock() else {
+			todo!();
 		    };
-		    if num == 0 {
-			break;
+		    match bf_reader.read_line(&mut line) {
+			Ok(num) if num == 0 => break,
+			Err(why) => panic!("{}", why),
+			_ => {},
 		    }
-		} // Not loop
+		}
 		let delta: Counters = scan_tokens(&line);
 		line.clear();
 		let _ = thread_tx.send(delta);
@@ -57,7 +57,10 @@ fn main() {
     }
 
     for worker in workers {
-	let _ = worker.join().unwrap();
+	match worker.join() {
+	    Ok(()) => {},
+	    Err(why) => println!("{:?}", why),
+	}
     }
 
     println!(
