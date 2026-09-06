@@ -1,5 +1,11 @@
 use std::str::Chars;
 use std::{env, fs};
+use std::thread;
+use std::io::BufReader;
+use std::io::BufRead;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
 
 struct Counters {
     num_statements: u32,
@@ -7,24 +13,52 @@ struct Counters {
 }
 
 fn main() {
-    let mut counter = Counters {
-        num_statements: 0,
-        num_blocks: 0,
-    };
-
     let mut args_iter = env::args().skip(1);
     let Some(file_path) = args_iter.next() else {
         panic!("Couldn't get next arg!");
     };
 
-    println!("{}", file_path);
-
-    let src_content: String = match fs::read_to_string(file_path) {
-        Err(why) => panic!("Couldn't read file {}", why),
-        Ok(contents) => contents,
+    let Ok(source_file) = fs::File::open(&file_path) else {
+	panic!("Couldn't get the file");
     };
 
-    scan_tokens(src_content, &mut counter);
+    let buf_reader = BufReader::new(source_file);
+    let shared_bufreader = Arc::new(Mutex::new(buf_reader));
+    let (tx, rx): (Sender<Counters>, Receiver<Counters>) = mpsc::channel();
+    let mut workers = vec![];
+    for _ in 0..5 {
+	let clone_bufreader = Arc::clone(&shared_bufreader);
+	let thread_tx = tx.clone();
+	let worker = thread::spawn(move || {
+	    let mut line = String::new();
+	    loop {
+		{
+		    let mut bf_reader = clone_bufreader.lock().unwrap();
+		    let Ok(num) = bf_reader.read_line(&mut line) else {
+			break;
+		    };
+		    if num == 0 {
+			break;
+		    }
+		} // Not loop
+		let delta: Counters = scan_tokens(&line);
+		line.clear();
+		let _ = thread_tx.send(delta);
+	    } // end loop
+	});
+	workers.push(worker);
+    }
+    drop(tx);
+
+    let mut counter = Counters { num_statements: 0, num_blocks: 0 };
+    for recieved in rx {
+	counter.num_statements += recieved.num_statements;
+	counter.num_blocks += recieved.num_blocks;
+    }
+
+    for worker in workers {
+	let _ = worker.join().unwrap();
+    }
 
     println!(
         "Approximate number of statements: {}",
@@ -33,12 +67,13 @@ fn main() {
     println!("Approximate number of blocks: {}", counter.num_blocks);
 }
 
-fn scan_tokens(src_content: String, counter: &mut Counters) {
+fn scan_tokens(src_content: &String) -> Counters {
+    let mut delta = Counters{ num_statements: 0, num_blocks: 0 };
     let mut token_iter = src_content.chars();
     while let Some(token) = token_iter.next() {
         match token {
-            ';' => counter.num_statements += 1,
-            '}' => counter.num_blocks += 1,
+            ';' => delta.num_statements += 1,
+            '}' => delta.num_blocks += 1,
             '(' => skip_tokens(&mut token_iter, ')'),
             '/' => match token_iter.next() {
                 Some('/') => skip_tokens(&mut token_iter, '\n'),
@@ -49,6 +84,7 @@ fn scan_tokens(src_content: String, counter: &mut Counters) {
             _ => {}
         }
     }
+    delta
 }
 
 fn skip_tokens(token_iter: &mut Chars, end_token: char) {
