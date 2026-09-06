@@ -1,11 +1,10 @@
+use std::io::{BufRead, BufReader};
 use std::str::Chars;
-use std::{env, fs};
-use std::thread;
-use std::io::BufReader;
-use std::io::BufRead;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::{env, fs};
 
 struct Counters {
     num_statements: u32,
@@ -19,48 +18,51 @@ fn main() {
     };
 
     let Ok(source_file) = fs::File::open(&file_path) else {
-	panic!("Couldn't get the file");
+        panic!("Couldn't get the file");
     };
 
     let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
     let (tx, rx): (Sender<Counters>, Receiver<Counters>) = mpsc::channel();
     let mut workers = vec![];
     for _ in 0..5 {
-	let clone_bufreader = Arc::clone(&shared_bufreader);
-	let thread_tx = tx.clone();
-	let worker = thread::spawn(move || {
-	    let mut line = String::new();
-	    loop {
-		{
-		    let Ok(mut bf_reader) = clone_bufreader.lock() else {
-			todo!();
-		    };
-		    match bf_reader.read_line(&mut line) {
-			Ok(num) if num == 0 => break,
-			Err(why) => panic!("{}", why),
-			_ => {},
-		    }
-		}
-		let delta: Counters = scan_tokens(&line);
-		line.clear();
-		let _ = thread_tx.send(delta);
-	    } // end loop
-	});
-	workers.push(worker);
+        let clone_bufreader = Arc::clone(&shared_bufreader);
+        let thread_tx = tx.clone();
+        let worker = thread::spawn(move || {
+            let mut line = String::new();
+            loop {
+                {
+                    let Ok(mut bf_reader) = clone_bufreader.lock() else {
+                        todo!();
+                    };
+                    match bf_reader.read_line(&mut line) {
+                        Ok(num) if num == 0 => break,
+                        Err(why) => panic!("{}", why),
+                        _ => {}
+                    }
+                }
+                let delta: Counters = scan_tokens(&line);
+                line.clear();
+                let _ = thread_tx.send(delta);
+            } // end loop
+        });
+        workers.push(worker);
     }
     drop(tx);
 
-    let mut counter = Counters { num_statements: 0, num_blocks: 0 };
+    let mut counter = Counters {
+        num_statements: 0,
+        num_blocks: 0,
+    };
     for recieved in rx {
-	counter.num_statements += recieved.num_statements;
-	counter.num_blocks += recieved.num_blocks;
+        counter.num_statements += recieved.num_statements;
+        counter.num_blocks += recieved.num_blocks;
     }
 
     for worker in workers {
-	match worker.join() {
-	    Ok(()) => {},
-	    Err(why) => println!("{:?}", why),
-	}
+        match worker.join() {
+            Ok(()) => {}
+            Err(why) => println!("{:?}", why),
+        }
     }
 
     println!(
@@ -71,7 +73,10 @@ fn main() {
 }
 
 fn scan_tokens(src_content: &String) -> Counters {
-    let mut delta = Counters{ num_statements: 0, num_blocks: 0 };
+    let mut delta = Counters {
+        num_statements: 0,
+        num_blocks: 0,
+    };
     let mut token_iter = src_content.chars();
     while let Some(token) = token_iter.next() {
         match token {
