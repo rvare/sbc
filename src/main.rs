@@ -31,18 +31,21 @@ fn main() {
             let mut line = String::new();
             loop {
                 {
-                    let Ok(mut bf_reader) = clone_bufreader.lock() else {
-                        todo!();
+                    let mut bf_reader = match clone_bufreader.lock() {
+                        Ok(bf_reader) => bf_reader,
+                        Err(p_err) => p_err.into_inner(), // Should allow us to recover the BufReader from a panicked thread.
                     };
                     match bf_reader.read_line(&mut line) {
-                        Ok(num) if num == 0 => break,
+                        Ok(num_bytes) if num_bytes == 0 => break, // Breaks out of loop, not the block.
                         Err(why) => panic!("{}", why),
                         _ => {}
                     }
                 }
                 let delta: Counters = scan_tokens(&line);
                 line.clear();
-                let _ = thread_tx.send(delta);
+		if let Err(why) = thread_tx.send(delta) {
+		    println!("{}", why);
+		}
             } // end loop
         });
         workers.push(worker);
@@ -59,16 +62,12 @@ fn main() {
     }
 
     for worker in workers {
-        match worker.join() {
-            Ok(()) => {}
-            Err(why) => println!("{:?}", why),
-        }
+	if let Err(why) = worker.join() {
+	    println!("{:?}", why);
+	}
     }
 
-    println!(
-        "Approximate number of statements: {}",
-        counter.num_statements
-    );
+    println!("Approximate number of statements: {}", counter.num_statements);
     println!("Approximate number of blocks: {}", counter.num_blocks);
 }
 
