@@ -21,10 +21,15 @@ fn main() {
         panic!("Couldn't get the file");
     };
 
+    let num_threads: usize = match args_iter.next() {
+        Some(num_threads) => num_threads.parse::<usize>().unwrap(),
+        None => 3,
+    };
+
     let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
     let (tx, rx): (Sender<Counters>, Receiver<Counters>) = mpsc::channel();
     let mut workers = vec![];
-    for _ in 0..5 {
+    for _ in 1..=num_threads {
         let clone_bufreader = Arc::clone(&shared_bufreader);
         let thread_tx = tx.clone();
         let worker = thread::spawn(move || {
@@ -43,9 +48,9 @@ fn main() {
                 }
                 let delta: Counters = scan_tokens(&line);
                 line.clear();
-		if let Err(why) = thread_tx.send(delta) {
-		    println!("{}", why);
-		}
+                if let Err(why) = thread_tx.send(delta) {
+                    println!("{}", why);
+                }
             } // end loop
         });
         workers.push(worker);
@@ -62,9 +67,9 @@ fn main() {
     }
 
     for worker in workers {
-	if let Err(why) = worker.join() {
-	    println!("{:?}", why);
-	}
+        if let Err(why) = worker.join() {
+            println!("{:?}", why);
+        }
     }
 
     println!("Approximate number of statements: {}", counter.num_statements);
