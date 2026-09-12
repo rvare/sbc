@@ -11,6 +11,20 @@ struct Counters {
     num_blocks: u32,
 }
 
+impl Counters {
+    fn new() -> Counters {
+	Counters {
+	    num_statements: 0,
+	    num_blocks: 0
+	}
+    }
+
+    fn add_delta(&mut self, delta: Counters) {
+	self.num_statements += delta.num_statements;
+	self.num_blocks += delta.num_blocks;
+    }
+}
+
 fn main() {
     let mut args_iter = env::args().skip(1);
     let Some(file_path) = args_iter.next() else {
@@ -35,35 +49,30 @@ fn main() {
         let worker = thread::spawn(move || {
             let mut line = String::new();
             loop {
-                {
-                    let mut bf_reader = match clone_bufreader.lock() {
-                        Ok(bf_reader) => bf_reader,
-                        Err(p_err) => p_err.into_inner(), // Should allow us to recover the BufReader from a panicked thread.
-                    };
-                    match bf_reader.read_line(&mut line) {
-                        Ok(num_bytes) if num_bytes == 0 => break, // Breaks out of loop, not the block.
-                        Err(why) => panic!("{}", why),
-                        _ => {}
-                    }
-                }
+		let mut bf_reader = match clone_bufreader.lock() {
+		    Ok(bf_reader) => bf_reader,
+		    Err(p_err) => p_err.into_inner(), // Should allow us to recover the BufReader from a panicked thread.
+		};
+		match bf_reader.read_line(&mut line) {
+		    Ok(0) => break, // Breaks out of loop, not the block.
+		    Err(why) => panic!("{}", why),
+		    _ => {}
+		}
+		drop(bf_reader);
                 let delta: Counters = scan_tokens(&line);
                 line.clear();
                 if let Err(why) = thread_tx.send(delta) {
                     println!("{}", why);
                 }
-            } // end loop
+	    } // end loop
         });
         workers.push(worker);
     }
     drop(tx);
 
-    let mut counter = Counters {
-        num_statements: 0,
-        num_blocks: 0,
-    };
+    let mut counter = Counters::new();
     for recieved in rx {
-        counter.num_statements += recieved.num_statements;
-        counter.num_blocks += recieved.num_blocks;
+	counter.add_delta(recieved);
     }
 
     for worker in workers {
@@ -77,10 +86,8 @@ fn main() {
 }
 
 fn scan_tokens(src_content: &String) -> Counters {
-    let mut delta = Counters {
-        num_statements: 0,
-        num_blocks: 0,
-    };
+    let mut delta = Counters::new();
+
     let mut token_iter = src_content.chars();
     while let Some(token) = token_iter.next() {
         match token {
@@ -120,7 +127,7 @@ fn skip_multiline_comment(token_iter: &mut Chars) {
                     }
                 }
             }
-            _ => {}
+            _ => {}, // Any character within the multiline comment.
         }
     }
 }
