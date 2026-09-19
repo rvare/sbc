@@ -38,18 +38,14 @@ fn main() {
 		process::exit(0);
 	    },
 	    "-t" | "--threads" => {
-		let Some(snt) = args_iter.next() else {
+		let Some(thread_quantity) = args_iter.next() else {
 		    eprintln!("No quantity given");
 		    process::exit(1);
 		};
-		num_threads = match snt.parse::<usize>() {
+		num_threads = match thread_quantity.parse::<usize>() {
 		    Ok(count) if count > 0 => count,
-		    Ok(count) if count <= 0 => {
-			eprintln!("Number of threads must be strictly greater than zero.");
-			process::exit(1);
-		    },
 		    Ok(_) => {
-			eprintln!("Not a number");
+			eprintln!("Number of threads must be strictly greater than zero.");
 			process::exit(1);
 		    },
 		    Err(why) => {
@@ -58,16 +54,19 @@ fn main() {
 		    }
 		};
 	    },
-	    file_path_arg => {
-		file_path = Some(String::from(file_path_arg));
-	    }
+	    file_path_arg => file_path = Some(String::from(file_path_arg)),
 	}
     }
 
-    let Ok(source_file) = fs::File::open(file_path.unwrap()) else {
-        panic!("Couldn't get the file");
+    let Some(file_path) = file_path else {
+	eprintln!("No file given");
+	process::exit(1);
     };
 
+    let Ok(source_file) = fs::File::open(file_path) else {
+        panic!("Couldn't get the file");
+    };
+    
     let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
     let (tx, rx): (Sender<Counters>, Receiver<Counters>) = mpsc::channel();
     let mut workers = vec![];
