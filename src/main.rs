@@ -5,6 +5,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::{env, fs};
+use std::process;
 
 struct Counters {
     num_statements: u32,
@@ -27,17 +28,44 @@ impl Counters {
 
 fn main() {
     let mut args_iter = env::args().skip(1);
-    let Some(file_path) = args_iter.next() else {
-        panic!("Couldn't get next arg!");
-    };
+    let mut num_threads = 4;
+    let mut file_path: Option<String> = None;
 
-    let Ok(source_file) = fs::File::open(&file_path) else {
+    while let Some(arg) = args_iter.next() {
+	match arg.as_str() {
+	    "-h" | "--help" => {
+		show_help();
+		process::exit(0);
+	    },
+	    "-t" | "--threads" => {
+		let Some(snt) = args_iter.next() else {
+		    eprintln!("No quantity given");
+		    process::exit(1);
+		};
+		num_threads = match snt.parse::<usize>() {
+		    Ok(count) if count > 0 => count,
+		    Ok(count) if count <= 0 => {
+			eprintln!("Number of threads must be strictly greater than zero.");
+			process::exit(1);
+		    },
+		    Ok(_) => {
+			eprintln!("Not a number");
+			process::exit(1);
+		    },
+		    Err(why) => {
+			eprintln!("{}", why);
+			process::exit(1);
+		    }
+		};
+	    },
+	    file_path_arg => {
+		file_path = Some(String::from(file_path_arg));
+	    }
+	}
+    }
+
+    let Ok(source_file) = fs::File::open(file_path.unwrap()) else {
         panic!("Couldn't get the file");
-    };
-
-    let num_threads: usize = match args_iter.next() {
-        Some(num_threads) => num_threads.parse::<usize>().unwrap(),
-        None => 3,
     };
 
     let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
@@ -137,6 +165,12 @@ fn skip_multiline_comment(token_iter: &mut Chars) {
             _ => {} // Any character within the multiline comment.
         }
     }
+}
+
+fn show_help() {
+    println!("Usage: sca [OPTIONS] [FILE]");
+    println!("  -h, --help\n\tShow this help");
+    println!("  -t, --threads\n\tHow many threads to use (default 4)");
 }
 
 #[cfg(test)]
