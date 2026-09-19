@@ -28,8 +28,17 @@ impl Counters {
 
 fn main() {
     let mut args_iter = env::args().skip(1);
-    let mut num_threads = 4;
     let mut file_path: Option<String> = None;
+
+    let available_threads: usize = match thread::available_parallelism() {
+	Ok(non_zero) => non_zero.get(),
+	Err(why) => {
+	    eprintln!("{}", why);
+	    process::exit(1);
+	}
+    };
+
+    let mut num_threads = if available_threads > 4 { 4 } else { 1 };
 
     while let Some(arg) = args_iter.next() {
 	match arg.as_str() {
