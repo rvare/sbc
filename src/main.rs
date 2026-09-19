@@ -1,11 +1,11 @@
 use std::io::{BufRead, BufReader};
+use std::process;
 use std::str::Chars;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::{env, fs};
-use std::process;
 
 struct Counters {
     num_statements: u32,
@@ -31,51 +31,55 @@ fn main() {
     let mut file_path: Option<String> = None;
 
     let available_threads: usize = match thread::available_parallelism() {
-	Ok(non_zero) => non_zero.get(),
-	Err(why) => {
-	    eprintln!("{}", why);
-	    process::exit(1);
-	}
+        Ok(non_zero) => non_zero.get(),
+        Err(why) => {
+            eprintln!("{}", why);
+            process::exit(1);
+        }
     };
 
     let mut num_threads = if available_threads > 4 { 4 } else { 1 };
 
     while let Some(arg) = args_iter.next() {
-	match arg.as_str() {
-	    "-h" | "--help" => {
-		show_help();
+        match arg.as_str() {
+            "-h" | "--help" => {
+                show_help();
+                process::exit(0);
+            }
+            "-t" | "--threads" => {
+                let Some(thread_quantity) = args_iter.next() else {
+                    eprintln!("No quantity given");
+                    process::exit(1);
+                };
+                num_threads = match thread_quantity.parse::<usize>() {
+                    Ok(count) if count > 0 => count,
+                    Ok(_) => {
+                        eprintln!("Number of threads must be strictly greater than zero.");
+                        process::exit(1);
+                    }
+                    Err(why) => {
+                        eprintln!("{}", why);
+                        process::exit(1);
+                    }
+                };
+            }
+	    "--available-parallelism" => {
+		println!("Available threads for parallelism: {available_threads}.");
 		process::exit(0);
-	    },
-	    "-t" | "--threads" => {
-		let Some(thread_quantity) = args_iter.next() else {
-		    eprintln!("No quantity given");
-		    process::exit(1);
-		};
-		num_threads = match thread_quantity.parse::<usize>() {
-		    Ok(count) if count > 0 => count,
-		    Ok(_) => {
-			eprintln!("Number of threads must be strictly greater than zero.");
-			process::exit(1);
-		    },
-		    Err(why) => {
-			eprintln!("{}", why);
-			process::exit(1);
-		    }
-		};
-	    },
-	    file_path_arg => file_path = Some(String::from(file_path_arg)),
-	}
+	    }
+            file_path_arg => file_path = Some(String::from(file_path_arg)),
+        }
     }
 
     let Some(file_path) = file_path else {
-	eprintln!("No file given");
-	process::exit(1);
+        eprintln!("No file given");
+        process::exit(1);
     };
 
     let Ok(source_file) = fs::File::open(file_path) else {
         panic!("Couldn't get the file");
     };
-    
+
     let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
     let (tx, rx): (Sender<Counters>, Receiver<Counters>) = mpsc::channel();
     let mut workers = vec![];
@@ -177,6 +181,7 @@ fn skip_multiline_comment(token_iter: &mut Chars) {
 
 fn show_help() {
     println!("Usage: sca [OPTIONS] [FILE]");
+    println!("  --available-parallelism\n\tShows how many threads are available for true parallelism.");
     println!("  -h, --help\n\tShow this help");
     println!("  -t, --threads\n\tHow many threads to use (default 4)");
 }
