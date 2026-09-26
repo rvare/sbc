@@ -1,13 +1,13 @@
 pub mod scan;
 
-use std::process;
-use std::thread;
 use std::env;
-use std::iter::Skip;
 use std::fs;
-use std::sync::{Arc, Mutex};
-use std::io::{BufReader, BufRead};
+use std::io::{BufRead, BufReader};
+use std::iter::Skip;
+use std::process;
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub struct Counters {
     pub num_statements: u32,
@@ -30,10 +30,13 @@ impl Counters {
 
 pub struct Parameters {
     pub source_file: fs::File,
-    pub num_threads: usize
+    pub num_threads: usize,
 }
 
-pub fn parse_cmd_parameters(args_iter: &mut Skip<env::Args>, available_threads: usize) -> Parameters {
+pub fn parse_cmd_parameters(
+    args_iter: &mut Skip<env::Args>,
+    available_threads: usize,
+) -> Parameters {
     let mut file_path: Option<String> = None;
     let mut num_threads: usize = available_threads;
 
@@ -60,33 +63,35 @@ pub fn parse_cmd_parameters(args_iter: &mut Skip<env::Args>, available_threads: 
                     }
                 };
             }
-	    "--available-parallelism" => {
-		println!("Available threads for parallelism: {available_threads}.");
-		process::exit(0);
-	    }
+            "--available-parallelism" => {
+                println!("Available threads for parallelism: {available_threads}.");
+                process::exit(0);
+            }
             file_path_arg => file_path = Some(String::from(file_path_arg)),
         }
     }
 
     let Some(file_path) = file_path else {
-	eprintln!("No file given");
-	process::exit(1);
+        eprintln!("No file given");
+        process::exit(1);
     };
 
     let Ok(source_file) = fs::File::open(file_path) else {
-	eprintln!("Could not get give file.");
-	process::exit(1);
+        eprintln!("Could not get give file.");
+        process::exit(1);
     };
 
     Parameters {
-	source_file,
-	num_threads,
+        source_file,
+        num_threads,
     }
 }
 
 pub fn show_help() {
     println!("Usage: sca [OPTIONS] [FILE]");
-    println!("  --available-parallelism\n\tShows how many threads are available for true parallelism.");
+    println!(
+        "  --available-parallelism\n\tShows how many threads are available for true parallelism."
+    );
     println!("  -h, --help\n\tShow this help");
     println!("  -t, --threads\n\tHow many threads to use (default 4)");
 }

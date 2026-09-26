@@ -1,7 +1,7 @@
+use sca;
+use std::env;
 use std::process;
 use std::thread;
-use std::env;
-use sca;
 
 fn main() {
     let mut args_iter = env::args().skip(1);
@@ -21,4 +21,3 @@ fn main() {
     println!("Approximate number of statements: {}", counter.num_statements);
     println!("Approximate number of blocks: {}", counter.num_blocks);
 }
-
