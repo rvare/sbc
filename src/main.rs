@@ -9,7 +9,7 @@ use sca;
 
 fn main() {
     let mut args_iter = env::args().skip(1);
-    let mut file_path: Option<String> = None;
+    let mut params = sca::Parameters::new();
 
     let available_threads: usize = match thread::available_parallelism() {
         Ok(non_zero) => non_zero.get(),
@@ -19,40 +19,9 @@ fn main() {
         }
     };
 
-    let mut num_threads = if available_threads > 4 { 4 } else { 1 };
+    sca::parse_cmd_parameters(&mut args_iter, &mut params, available_threads);
 
-    while let Some(arg) = args_iter.next() {
-        match arg.as_str() {
-            "-h" | "--help" => {
-                sca::show_help();
-                process::exit(0);
-            }
-            "-t" | "--threads" => {
-                let Some(thread_quantity) = args_iter.next() else {
-                    eprintln!("No quantity given");
-                    process::exit(1);
-                };
-                num_threads = match thread_quantity.parse::<usize>() {
-                    Ok(count) if count > 0 => count,
-                    Ok(_) => {
-                        eprintln!("Number of threads must be strictly greater than zero.");
-                        process::exit(1);
-                    }
-                    Err(why) => {
-                        eprintln!("{}", why);
-                        process::exit(1);
-                    }
-                };
-            }
-	    "--available-parallelism" => {
-		println!("Available threads for parallelism: {available_threads}.");
-		process::exit(0);
-	    }
-            file_path_arg => file_path = Some(String::from(file_path_arg)),
-        }
-    }
-
-    let Some(file_path) = file_path else {
+    let Some(file_path) = params.file_path else {
         eprintln!("No file given");
         process::exit(1);
     };
@@ -64,7 +33,7 @@ fn main() {
     let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
     let (tx, rx): (Sender<sca::Counters>, Receiver<sca::Counters>) = mpsc::channel();
     let mut workers = vec![];
-    for _ in 1..=num_threads {
+    for _ in 1..=params.num_threads {
         let clone_bufreader = Arc::clone(&shared_bufreader);
         let thread_tx = tx.clone();
         let worker = thread::spawn(move || {
