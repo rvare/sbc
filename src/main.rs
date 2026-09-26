@@ -52,7 +52,7 @@ fn main() {
 
                 drop(bf_reader);
 
-                let delta: sca::Counters = sca::scan_tokens(&line);
+                let delta: sca::Counters = sca::scan::scan_tokens(&line);
                 line.clear();
 
                 if let Err(why) = thread_tx.send(delta) {
