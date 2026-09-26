@@ -1,15 +1,10 @@
-use std::io::{BufRead, BufReader};
 use std::process;
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
 use std::thread;
-use std::{env, fs};
+use std::env;
 use sca;
 
 fn main() {
     let mut args_iter = env::args().skip(1);
-    let mut params = sca::Parameters::new();
 
     let available_threads: usize = match thread::available_parallelism() {
         Ok(non_zero) => non_zero.get(),
@@ -19,67 +14,11 @@ fn main() {
         }
     };
 
-    sca::parse_cmd_parameters(&mut args_iter, &mut params, available_threads);
+    let params = sca::parse_cmd_parameters(&mut args_iter, available_threads);
 
-    let Some(file_path) = params.file_path else {
-        eprintln!("No file given");
-        process::exit(1);
-    };
-
-    let Ok(source_file) = fs::File::open(file_path) else {
-        eprintln!("Couldn't get the file");
-	process::exit(1);
-    };
-
-    let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
-    let (tx, rx): (Sender<sca::Counters>, Receiver<sca::Counters>) = mpsc::channel();
-    let mut workers = vec![];
-    for _ in 1..=params.num_threads {
-        let clone_bufreader = Arc::clone(&shared_bufreader);
-        let thread_tx = tx.clone();
-        let worker = thread::spawn(move || {
-            let mut line = String::new();
-            loop {
-                let mut bf_reader = match clone_bufreader.lock() {
-                    Ok(bf_reader) => bf_reader,
-                    Err(p_err) => p_err.into_inner(), // Should allow us to recover the BufReader from a panicked thread.
-                };
-
-                match bf_reader.read_line(&mut line) {
-                    Ok(0) => break, // Breaks out of loop, not the block.
-                    Err(why) => panic!("{}", why),
-                    _ => {}
-                }
-
-                drop(bf_reader);
-
-                let delta: sca::Counters = sca::scan::scan_tokens(&line);
-                line.clear();
-
-                if let Err(why) = thread_tx.send(delta) {
-                    println!("{}", why);
-                }
-            } // end loop
-        });
-
-        workers.push(worker);
-    }
-
-    drop(tx);
-
-    let mut counter = sca::Counters::new();
-    for recieved in rx {
-        counter.add_delta(recieved);
-    }
-
-    for worker in workers {
-        if let Err(why) = worker.join() {
-            eprintln!("{:?}", why);
-        }
-    }
+    let counter = sca::process_source(params);
 
     println!("Approximate number of statements: {}", counter.num_statements);
     println!("Approximate number of blocks: {}", counter.num_blocks);
 }
-
 

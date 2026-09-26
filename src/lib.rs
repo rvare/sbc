@@ -4,6 +4,10 @@ use std::process;
 use std::thread;
 use std::env;
 use std::iter::Skip;
+use std::fs;
+use std::sync::{Arc, Mutex};
+use std::io::{BufReader, BufRead};
+use std::sync::mpsc;
 
 pub struct Counters {
     pub num_statements: u32,
@@ -25,26 +29,14 @@ impl Counters {
 }
 
 pub struct Parameters {
-    pub file_path: Option<String>,
+    pub source_file: fs::File,
     pub num_threads: usize
 }
 
-impl Parameters {
-    pub fn new() -> Parameters {
-	Parameters {
-	    file_path: None,
-	    num_threads: match thread::available_parallelism() {
-		Ok(non_zero) => non_zero.get(),
-		Err(why) => {
-		    eprintln!("{}", why);
-		    process::exit(1);
-		}
-	    }
-	}
-    }
-}
+pub fn parse_cmd_parameters(args_iter: &mut Skip<env::Args>, available_threads: usize) -> Parameters {
+    let mut file_path: Option<String> = None;
+    let mut num_threads: usize = available_threads;
 
-pub fn parse_cmd_parameters(args_iter: &mut Skip<env::Args>, params: &mut Parameters, available_threads: usize) {
     while let Some(arg) = args_iter.next() {
         match arg.as_str() {
             "-h" | "--help" => {
@@ -56,7 +48,7 @@ pub fn parse_cmd_parameters(args_iter: &mut Skip<env::Args>, params: &mut Parame
                     eprintln!("No quantity given");
                     process::exit(1);
                 };
-                params.num_threads = match thread_quantity.parse::<usize>() {
+                num_threads = match thread_quantity.parse::<usize>() {
                     Ok(count) if count > 0 => count,
                     Ok(_) => {
                         eprintln!("Number of threads must be strictly greater than zero.");
@@ -72,8 +64,23 @@ pub fn parse_cmd_parameters(args_iter: &mut Skip<env::Args>, params: &mut Parame
 		println!("Available threads for parallelism: {available_threads}.");
 		process::exit(0);
 	    }
-            file_path_arg => params.file_path = Some(String::from(file_path_arg)),
+            file_path_arg => file_path = Some(String::from(file_path_arg)),
         }
+    }
+
+    let Some(file_path) = file_path else {
+	eprintln!("No file given");
+	process::exit(1);
+    };
+
+    let Ok(source_file) = fs::File::open(file_path) else {
+	eprintln!("Could not get give file.");
+	process::exit(1);
+    };
+
+    Parameters {
+	source_file,
+	num_threads,
     }
 }
 
@@ -84,3 +91,53 @@ pub fn show_help() {
     println!("  -t, --threads\n\tHow many threads to use (default 4)");
 }
 
+pub fn process_source(params: Parameters) -> Counters {
+    let shared_bufreader = Arc::new(Mutex::new(BufReader::new(params.source_file)));
+    let (tx, rx): (mpsc::Sender<Counters>, mpsc::Receiver<Counters>) = mpsc::channel();
+    let mut workers = vec![];
+    for _ in 1..=params.num_threads {
+        let clone_bufreader = Arc::clone(&shared_bufreader);
+        let thread_tx = tx.clone();
+        let worker = thread::spawn(move || {
+            let mut line = String::new();
+            loop {
+                let mut bf_reader = match clone_bufreader.lock() {
+                    Ok(bf_reader) => bf_reader,
+                    Err(p_err) => p_err.into_inner(), // Should allow us to recover the BufReader from a panicked thread.
+                };
+
+                match bf_reader.read_line(&mut line) {
+                    Ok(0) => break, // Breaks out of loop, not the block.
+                    Err(why) => panic!("{}", why),
+                    _ => {}
+                }
+
+                drop(bf_reader);
+
+                let delta: Counters = scan::scan_tokens(&line);
+                line.clear();
+
+                if let Err(why) = thread_tx.send(delta) {
+                    println!("{}", why);
+                }
+            } // end loop
+        });
+
+        workers.push(worker);
+    }
+
+    drop(tx);
+
+    let mut counter = Counters::new();
+    for recieved in rx {
+        counter.add_delta(recieved);
+    }
+
+    for worker in workers {
+        if let Err(why) = worker.join() {
+            eprintln!("{:?}", why);
+        }
+    }
+
+    counter
+}
