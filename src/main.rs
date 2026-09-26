@@ -27,7 +27,8 @@ fn main() {
     };
 
     let Ok(source_file) = fs::File::open(file_path) else {
-        panic!("Couldn't get the file");
+        eprintln!("Couldn't get the file");
+	process::exit(1);
     };
 
     let shared_bufreader = Arc::new(Mutex::new(BufReader::new(source_file)));
@@ -73,7 +74,7 @@ fn main() {
 
     for worker in workers {
         if let Err(why) = worker.join() {
-            println!("{:?}", why);
+            eprintln!("{:?}", why);
         }
     }
 
