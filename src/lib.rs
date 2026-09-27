@@ -71,13 +71,14 @@ pub fn parse_cmd_parameters(
         }
     }
 
+    // Checks to see if file_path is None, unwraps string from Some, and shadows the old file_path variable.
     let Some(file_path) = file_path else {
         eprintln!("No file given");
         process::exit(1);
     };
 
-    let Ok(source_file) = fs::File::open(file_path) else {
-        eprintln!("Could not get give file.");
+    let Ok(source_file) = fs::File::open(&file_path) else {
+        eprintln!("Could not get give file located at {}", file_path);
         process::exit(1);
     };
 

@@ -15,9 +15,8 @@ fn main() {
     };
 
     let params = sca::parse_cmd_parameters(&mut args_iter, available_threads);
-
     let counter = sca::process_source(params);
 
-    println!("Approximate number of statements: {}", counter.num_statements);
-    println!("Approximate number of blocks: {}", counter.num_blocks);
+    println!("Number of statements: {}", counter.num_statements);
+    println!("Number of blocks: {}", counter.num_blocks);
 }
