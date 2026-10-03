@@ -1,6 +1,6 @@
 /*
 Copyright 2026 Richard Varela
-This file is part of sca.
+This file is part of sbc.
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
@@ -9,7 +9,7 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-use sca;
+use sbc;
 use std::env;
 use std::process;
 use std::thread;
@@ -25,8 +25,8 @@ fn main() {
         }
     };
 
-    let params = sca::parse_cmd_parameters(&mut args_iter, available_threads);
-    let counter = sca::process_source(params);
+    let params = sbc::parse_cmd_parameters(&mut args_iter, available_threads);
+    let counter = sbc::process_source(params);
 
     println!("Number of statements: {}", counter.num_statements);
     println!("Number of blocks: {}", counter.num_blocks);

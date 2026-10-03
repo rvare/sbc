@@ -1,6 +1,6 @@
 /*
 Copyright 2026 Richard Varela
-This file is part of sca.
+This file is part of sbc.
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
@@ -100,7 +100,7 @@ pub fn parse_cmd_parameters(
 }
 
 pub fn show_help() {
-    println!("Usage: sca [OPTIONS] [FILE]");
+    println!("Usage: sbc [OPTIONS] [FILE]");
     println!(
         "  --available-parallelism\n\tShows how many threads are available for true parallelism."
     );
@@ -109,11 +109,11 @@ pub fn show_help() {
 }
 
 pub fn show_version() {
-    println!("sca 0.1.0");
+    println!("sbc 0.1.0");
     println!("Copyright 2026");
     println!("License GPLv3+: GNU GPL version or later <https://gnu.org/licenses/gpl.html>.");
     println!("This is free software: you are free to change and redistribute it.");
-    pritnln!("There is NO WARRANTY.");
+    println!("There is NO WARRANTY.");
 }
 
 pub fn process_source(params: Parameters) -> Counters {
